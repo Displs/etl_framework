@@ -1,0 +1,50 @@
+apiVersion: etlf/v1
+kind: Entity
+metadata:
+  name: ods_orders
+  layer: ods
+  description: Cleaned, deduplicated orders fact (incremental by updated_at)
+  owner: data-platform
+  tags: [orders, incremental]
+source:
+  ref: postgres_oltp.public.orders
+target:
+  catalog: warehouse
+  schema: ods
+  table: orders
+  format: iceberg
+  partition_by: [order_date]
+load:
+  strategy: incremental
+  business_keys: [order_id]
+  watermark_column: updated_at
+mapping:
+  - target: order_id
+    type: BIGINT
+    source: id
+    pk: true
+  - target: client_id
+    type: BIGINT
+    source: client_id
+  - target: order_date
+    type: DATE
+    source: order_ts
+    transform: "to_date($)"
+  - target: status
+    type: VARCHAR(20)
+    source: status
+    transform: "upper(trim($))"
+  - target: total_amount
+    type: DECIMAL(18,2)
+    source: total_amount
+    null_default: "0"
+  - target: channel
+    type: VARCHAR(20)
+    source: channel
+  - target: updated_at
+    type: TIMESTAMP
+    source: updated_at
+schedule:
+  cron: "0 */2 * * *"
+  start_date: "2026-01-01"
+  depends_on: []

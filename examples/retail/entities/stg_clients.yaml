@@ -1,0 +1,46 @@
+apiVersion: etlf/v1
+kind: Entity
+metadata:
+  name: stg_clients
+  layer: stg
+  description: Raw snapshot of OLTP clients table
+  owner: data-platform
+  tags: [raw, customer]
+source:
+  ref: postgres_oltp.public.clients
+target:
+  catalog: warehouse
+  schema: stg
+  table: clients
+  format: iceberg
+load:
+  strategy: full
+mapping:
+  - target: client_id
+    type: BIGINT
+    source: id
+    pk: true
+  - target: full_name
+    type: VARCHAR(200)
+    source: full_name
+  - target: email
+    type: VARCHAR(160)
+    source: email
+    transform: "lower(trim($))"
+    null_default: "'unknown@unknown'"
+  - target: segment_code
+    type: VARCHAR(20)
+    source: segment_code
+  - target: city
+    type: VARCHAR(100)
+    source: city
+  - target: created_at
+    type: TIMESTAMP
+    source: created_at
+  - target: updated_at
+    type: TIMESTAMP
+    source: updated_at
+schedule:
+  cron: "@hourly"
+  timezone: Europe/Moscow
+  start_date: "2026-01-01"

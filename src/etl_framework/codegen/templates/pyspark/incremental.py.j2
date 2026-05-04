@@ -1,0 +1,50 @@
+{% from "pyspark/_macros.j2" import file_header, common_imports, extract_fn, transform_fn %}
+{{ file_header(spec, framework_version, generated_at) }}
+{{ common_imports() }}
+
+
+TARGET = "{{ spec.target.fqn }}"
+WATERMARK_COLUMN = "{{ spec.load.watermark_column }}"
+BUSINESS_KEYS = [{% for k in spec.load.business_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+
+
+{{ extract_fn(spec, source) }}
+
+
+{{ transform_fn(spec) }}
+
+
+def append(df: DataFrame) -> None:
+    log.info("incremental append into %s (watermark=%s)", TARGET, WATERMARK_COLUMN)
+    df.writeTo(TARGET).using("{{ spec.target.format.value }}").append()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser.add_argument("--load-ts", default=None)
+    parser.add_argument(
+        "--lower-bound",
+        default=None,
+        help="ISO timestamp; rows with watermark > lower_bound are loaded",
+    )
+    args = parser.parse_args(argv)
+    load_ts = (
+        datetime.fromisoformat(args.load_ts) if args.load_ts else datetime.now(timezone.utc)
+    )
+
+    spark = SparkSession.builder.appName("etl_{{ spec.metadata.name }}").getOrCreate()
+    try:
+        raw = extract(spark, args.lower_bound)
+        prepared = transform(raw, load_ts)
+        append(prepared)
+        new_max = prepared.agg(F.max(WATERMARK_COLUMN)).collect()[0][0]
+        log.info("incremental load completed; new max watermark = %s", new_max)
+        if new_max is not None:
+            print(f"WATERMARK={new_max}")  # captured by Airflow XCom push
+    finally:
+        spark.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

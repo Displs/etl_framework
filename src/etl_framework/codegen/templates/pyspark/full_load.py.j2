@@ -1,0 +1,45 @@
+{% from "pyspark/_macros.j2" import file_header, common_imports, extract_fn, transform_fn %}
+{{ file_header(spec, framework_version, generated_at) }}
+{{ common_imports() }}
+
+
+TARGET = "{{ spec.target.fqn }}"
+
+
+{{ extract_fn(spec, source) }}
+
+
+{{ transform_fn(spec) }}
+
+
+def load(df: DataFrame) -> None:
+    log.info("full load: replacing %s", TARGET)
+    writer = df.writeTo(TARGET).using("{{ spec.target.format.value }}")
+{% if spec.target.partition_by %}
+    writer = writer.partitionedBy({% for p in spec.target.partition_by %}F.col("{{ p }}"){% if not loop.last %}, {% endif %}{% endfor %})
+{% endif %}
+    writer.createOrReplace()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser.add_argument("--load-ts", default=None)
+    parser.add_argument("--lower-bound", default=None)
+    args = parser.parse_args(argv)
+    load_ts = (
+        datetime.fromisoformat(args.load_ts) if args.load_ts else datetime.now(timezone.utc)
+    )
+
+    spark = SparkSession.builder.appName("etl_{{ spec.metadata.name }}").getOrCreate()
+    try:
+        raw = extract(spark, args.lower_bound)
+        prepared = transform(raw, load_ts)
+        load(prepared)
+        log.info("full load completed for %s", TARGET)
+    finally:
+        spark.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

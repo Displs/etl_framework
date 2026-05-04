@@ -1,0 +1,9 @@
+name: postgres_oltp
+description: Retail OLTP database (clients, products, orders)
+connection:
+  kind: postgres
+  host: postgres-oltp
+  port: 5432
+  database: retail
+  user: env:OLTP_USER
+  password: env:OLTP_PASSWORD

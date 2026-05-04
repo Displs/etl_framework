@@ -1,0 +1,54 @@
+apiVersion: etlf/v1
+kind: Entity
+metadata:
+  name: dds_clients
+  layer: dds
+  description: Client dimension with full history (SCD Type 2)
+  owner: data-platform
+  tags: [dim, customer, history]
+source:
+  ref: postgres_oltp.public.clients
+target:
+  catalog: warehouse
+  schema: dds
+  table: dim_clients
+  format: iceberg
+  partition_by: [is_current]
+load:
+  strategy: scd2
+  business_keys: [client_id]
+  tracked_columns: [full_name, email, segment_code, city]
+  effective_from: valid_from
+  effective_to: valid_to
+  current_flag: is_current
+mapping:
+  - target: client_id
+    type: BIGINT
+    source: id
+    pk: true
+  - target: full_name
+    type: VARCHAR(200)
+    source: full_name
+  - target: email
+    type: VARCHAR(160)
+    source: email
+    transform: "lower(trim($))"
+  - target: segment_code
+    type: VARCHAR(20)
+    source: segment_code
+  - target: city
+    type: VARCHAR(100)
+    source: city
+schedule:
+  cron: "@daily"
+  start_date: "2026-01-01"
+  depends_on: [stg_clients]
+sinks:
+  - name: gp_dim_clients
+    kind: greenplum
+    jdbc_url: jdbc:postgresql://greenplum-master:5432/analytics
+    schema: marts
+    table: dim_clients
+    user: env:GP_USER
+    password: env:GP_PASSWORD
+    write_mode: overwrite

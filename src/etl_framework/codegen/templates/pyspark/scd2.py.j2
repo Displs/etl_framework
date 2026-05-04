@@ -1,0 +1,93 @@
+{% from "pyspark/_macros.j2" import file_header, common_imports, extract_fn, transform_fn %}
+{{ file_header(spec, framework_version, generated_at) }}
+{{ common_imports() }}
+
+
+TARGET = "{{ spec.target.fqn }}"
+BUSINESS_KEYS = [{% for k in spec.load.business_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+TRACKED_COLUMNS = [{% for c in spec.load.tracked_columns %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+EFFECTIVE_FROM = "{{ spec.load.effective_from }}"
+EFFECTIVE_TO = "{{ spec.load.effective_to }}"
+CURRENT_FLAG = "{{ spec.load.current_flag }}"
+END_OF_TIME = "{{ spec.load.end_of_time }}"
+
+
+{{ extract_fn(spec, source) }}
+
+
+{{ transform_fn(spec) }}
+
+
+def merge_scd2(spark: SparkSession, df: DataFrame, load_ts: str) -> None:
+    df = (
+        df
+        .withColumn(EFFECTIVE_FROM, F.lit(load_ts).cast("timestamp"))
+        .withColumn(EFFECTIVE_TO, F.lit(END_OF_TIME).cast("timestamp"))
+        .withColumn(CURRENT_FLAG, F.lit(True))
+    )
+    df.createOrReplaceTempView("source_batch")
+
+    join_keys = " AND ".join(f"t.{k} = s.{k}" for k in BUSINESS_KEYS)
+    change_predicate = " OR ".join(
+        f"NOT (t.{c} <=> s.{c})" for c in TRACKED_COLUMNS
+    )
+
+    # Step 1: close currently active versions whose tracked attributes differ
+    close_sql = f"""
+        MERGE INTO {TARGET} AS t
+        USING source_batch AS s
+        ON {join_keys} AND t.{CURRENT_FLAG} = TRUE
+        WHEN MATCHED AND ({change_predicate})
+            THEN UPDATE SET
+                t.{EFFECTIVE_TO} = s.{EFFECTIVE_FROM},
+                t.{CURRENT_FLAG} = FALSE
+    """
+    log.info("scd2 step 1 (close): %s", TARGET)
+    spark.sql(close_sql)
+
+    # Step 2: insert new versions for new keys and for changed records
+    cols = (
+        BUSINESS_KEYS
+        + TRACKED_COLUMNS
+        + [EFFECTIVE_FROM, EFFECTIVE_TO, CURRENT_FLAG,
+           "{{ spec.audit.load_ts_column }}",
+           "{{ spec.audit.source_system_column }}"]
+{% if spec.audit.record_hash_column %}
+        + ["{{ spec.audit.record_hash_column }}"]
+{% endif %}
+    )
+    insert_cols = ", ".join(cols)
+    insert_vals = ", ".join("s." + c for c in cols)
+    insert_sql = f"""
+        MERGE INTO {TARGET} AS t
+        USING source_batch AS s
+        ON {join_keys} AND t.{CURRENT_FLAG} = TRUE
+        WHEN NOT MATCHED
+            THEN INSERT ({insert_cols}) VALUES ({insert_vals})
+    """
+    log.info("scd2 step 2 (insert new versions): %s", TARGET)
+    spark.sql(insert_sql)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser.add_argument("--load-ts", default=None)
+    parser.add_argument("--lower-bound", default=None)
+    args = parser.parse_args(argv)
+    load_ts = (
+        datetime.fromisoformat(args.load_ts) if args.load_ts else datetime.now(timezone.utc)
+    )
+
+    spark = SparkSession.builder.appName("etl_{{ spec.metadata.name }}").getOrCreate()
+    try:
+        raw = extract(spark, args.lower_bound)
+        prepared = transform(raw, load_ts)
+        merge_scd2(spark, prepared, load_ts.isoformat())
+        log.info("scd2 load completed for %s", TARGET)
+    finally:
+        spark.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

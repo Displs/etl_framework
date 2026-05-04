@@ -1,0 +1,54 @@
+apiVersion: etlf/v1
+kind: Entity
+metadata:
+  name: dm_orders_daily
+  layer: dm
+  description: Denormalized daily orders mart (one row per order) for BI dashboards
+  owner: analytics
+  tags: [mart, daily]
+source:
+  ref: postgres_oltp.public.orders
+target:
+  catalog: warehouse
+  schema: dm
+  table: orders_daily
+  format: iceberg
+  partition_by: [order_date]
+load:
+  strategy: full
+mapping:
+  - target: order_id
+    type: BIGINT
+    source: id
+    pk: true
+  - target: order_date
+    type: DATE
+    source: order_ts
+    transform: "to_date($)"
+  - target: client_id
+    type: BIGINT
+    source: client_id
+  - target: status
+    type: VARCHAR(20)
+    source: status
+    transform: "upper(trim($))"
+  - target: channel
+    type: VARCHAR(20)
+    source: channel
+  - target: total_amount
+    type: DECIMAL(18,2)
+    source: total_amount
+    null_default: "0"
+schedule:
+  cron: "0 3 * * *"
+  start_date: "2026-01-01"
+  depends_on: [ods_orders]
+sinks:
+  - name: ch_orders_daily
+    kind: clickhouse
+    jdbc_url: jdbc:clickhouse://clickhouse:8123/analytics
+    schema: marts
+    table: orders_daily
+    user: env:CH_USER
+    password: env:CH_PASSWORD
+    write_mode: overwrite

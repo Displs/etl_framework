@@ -1,0 +1,76 @@
+{% from "pyspark/_macros.j2" import file_header, common_imports, extract_fn, transform_fn %}
+{{ file_header(spec, framework_version, generated_at) }}
+{{ common_imports() }}
+
+
+TARGET = "{{ spec.target.fqn }}"
+BUSINESS_KEYS = [{% for k in spec.load.business_keys %}"{{ k }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% set tracked = spec.load.tracked_columns or (spec.mapping | map(attribute='target') | reject('in', spec.load.business_keys) | list) %}
+TRACKED_COLUMNS = [{% for c in tracked %}"{{ c }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+
+
+{{ extract_fn(spec, source) }}
+
+
+{{ transform_fn(spec) }}
+
+
+def merge_upsert(spark: SparkSession, df: DataFrame) -> None:
+    df.createOrReplaceTempView("source_batch")
+    on_clause = " AND ".join(f"t.{k} = s.{k}" for k in BUSINESS_KEYS)
+    update_set = ", ".join(f"t.{c} = s.{c}" for c in TRACKED_COLUMNS + [
+        "{{ spec.audit.load_ts_column }}",
+        "{{ spec.audit.source_system_column }}",
+{% if spec.audit.record_hash_column %}
+        "{{ spec.audit.record_hash_column }}",
+{% endif %}
+    ])
+    insert_cols = ", ".join(BUSINESS_KEYS + TRACKED_COLUMNS + [
+        "{{ spec.audit.load_ts_column }}",
+        "{{ spec.audit.source_system_column }}",
+{% if spec.audit.record_hash_column %}
+        "{{ spec.audit.record_hash_column }}",
+{% endif %}
+    ])
+    insert_vals = ", ".join("s." + c for c in BUSINESS_KEYS + TRACKED_COLUMNS + [
+        "{{ spec.audit.load_ts_column }}",
+        "{{ spec.audit.source_system_column }}",
+{% if spec.audit.record_hash_column %}
+        "{{ spec.audit.record_hash_column }}",
+{% endif %}
+    ])
+    sql = f"""
+        MERGE INTO {TARGET} AS t
+        USING source_batch AS s
+        ON {on_clause}
+        WHEN MATCHED AND t.{{ spec.audit.record_hash_column or spec.audit.load_ts_column }} <> s.{{ spec.audit.record_hash_column or spec.audit.load_ts_column }}
+            THEN UPDATE SET {update_set}
+        WHEN NOT MATCHED
+            THEN INSERT ({insert_cols}) VALUES ({insert_vals})
+    """
+    log.info("scd1 merge into %s", TARGET)
+    spark.sql(sql)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser.add_argument("--load-ts", default=None)
+    parser.add_argument("--lower-bound", default=None)
+    args = parser.parse_args(argv)
+    load_ts = (
+        datetime.fromisoformat(args.load_ts) if args.load_ts else datetime.now(timezone.utc)
+    )
+
+    spark = SparkSession.builder.appName("etl_{{ spec.metadata.name }}").getOrCreate()
+    try:
+        raw = extract(spark, args.lower_bound)
+        prepared = transform(raw, load_ts)
+        merge_upsert(spark, prepared)
+        log.info("scd1 load completed for %s", TARGET)
+    finally:
+        spark.stop()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,41 @@
+apiVersion: etlf/v1
+kind: Entity
+metadata:
+  name: dds_products
+  layer: dds
+  description: Product dimension; tracked attributes overwritten in place (SCD Type 1)
+  owner: data-platform
+  tags: [dim, product]
+source:
+  ref: postgres_oltp.public.products
+target:
+  catalog: warehouse
+  schema: dds
+  table: dim_products
+  format: iceberg
+load:
+  strategy: scd1
+  business_keys: [product_id]
+  tracked_columns: [name, category, brand, price]
+mapping:
+  - target: product_id
+    type: BIGINT
+    source: id
+    pk: true
+  - target: name
+    type: VARCHAR(200)
+    source: name
+  - target: category
+    type: VARCHAR(80)
+    source: category_code
+  - target: brand
+    type: VARCHAR(80)
+    source: brand
+  - target: price
+    type: DECIMAL(18,2)
+    source: price
+    null_default: "0"
+schedule:
+  cron: "@daily"
+  start_date: "2026-01-01"
+  depends_on: [stg_clients]

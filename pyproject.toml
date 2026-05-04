@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "etl-framework"
+version = "0.1.0"
+description = "Active-metadata-driven framework for ETL automation in Lakehouse-style data warehouses"
+requires-python = ">=3.10"
+authors = [{ name = "Felix Tsoi" }]
+license = { text = "MIT" }
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "sqlalchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "typer>=0.12",
+    "rich>=13.7",
+    "httpx>=0.27",
+    "networkx>=3.2",
+]
+
+[project.optional-dependencies]
+openmetadata = ["openmetadata-ingestion>=1.4"]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "types-PyYAML",
+]
+spark = ["pyspark>=3.4"]
+
+[project.scripts]
+etlf = "etl_framework.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+etl_framework = ["codegen/templates/**/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "RUF"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's idiomatic API places typer.Argument()/Option() in default values.
+"src/etl_framework/cli/*.py" = ["B008"]
+# OpenMetadata SDK class names are reused as local-binding aliases.
+"src/etl_framework/lineage/openmetadata.py" = ["N803"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+plugins = ["pydantic.mypy"]
