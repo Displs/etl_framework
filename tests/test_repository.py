@@ -1,4 +1,4 @@
-"""Repository loading and cross-entity validation."""
+"""Загрузка репозитория и межсущностная валидация."""
 
 from __future__ import annotations
 
@@ -29,9 +29,9 @@ def test_validation_clean(retail_repo: MetadataRepository):
 
 def test_topological_order_respects_deps(retail_repo: MetadataRepository):
     order = [e.metadata.name for e in topological_order(retail_repo)]
-    # dds_clients depends on stg_clients
+    # dds_clients зависит от stg_clients
     assert order.index("stg_clients") < order.index("dds_clients")
-    # dm_orders_daily depends on ods_orders
+    # dm_orders_daily зависит от ods_orders
     assert order.index("ods_orders") < order.index("dm_orders_daily")
 
 
@@ -81,7 +81,7 @@ def test_dependency_cycle_detected(tmp_path: Path):
     repo = MetadataRepository(tmp_path)
     repo.load()
     issues = validate_repository(repo)
-    assert any("cycle" in i.message for i in issues if i.severity == "error")
+    assert any("цикл" in i.message for i in issues if i.severity == "error")
 
 
 def test_target_collision_detected(tmp_path: Path):
@@ -104,7 +104,7 @@ def test_target_collision_detected(tmp_path: Path):
     repo = MetadataRepository(tmp_path)
     repo.load()
     issues = validate_repository(repo)
-    assert any("also written" in i.message for i in issues if i.severity == "error")
+    assert any("также пишет" in i.message for i in issues if i.severity == "error")
 
 
 def test_invalid_yaml_raises(tmp_path: Path):

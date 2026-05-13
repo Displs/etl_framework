@@ -1,9 +1,9 @@
-"""Discovery tests using SQLite as a stand-in for PostgreSQL.
+"""Тесты модуля discovery.
 
-We can't run a real PostgreSQL inside CI without a network, so we test the
-type-mapping + skeleton-emission logic with a SQLite-backed engine. The
-PostgresDiscoverer guards against non-postgres sources, so we exercise the
-internal helper directly.
+Запустить настоящий PostgreSQL в CI без сети нельзя, поэтому проверяем
+логику маппинга типов и порождения каркаса EntitySpec через прямые
+вызовы внутренних хелперов. ``PostgresDiscoverer`` отказывается работать
+с не-postgres источниками — это поведение тоже проверяется.
 """
 
 from __future__ import annotations

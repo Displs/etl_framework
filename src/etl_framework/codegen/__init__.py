@@ -1,4 +1,4 @@
-"""Template-driven code generation engine."""
+"""Шаблонный движок кодогенерации."""
 
 from .airflow_gen import AirflowDagGenerator
 from .engine import CodegenEngine, GeneratedArtifact

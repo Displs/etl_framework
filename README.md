@@ -1,86 +1,83 @@
 # etl-framework
 
-Active-metadata-driven framework for ETL automation in Lakehouse-style
-corporate data warehouses. Reads declarative YAML specs of warehouse entities
-and produces:
+Фреймворк автоматизации создания ETL-процессов корпоративного хранилища
+данных на основе активных метаданных. Принимает декларативные YAML-спецификации
+сущностей хранилища и формирует:
 
-* PySpark scripts for the four supported load patterns
-  (Full / Incremental / SCD Type 1 / SCD Type 2);
-* per-layer Apache Airflow DAGs;
-* optional DDL for downstream Greenplum / ClickHouse marts;
-* column-level data lineage published to OpenMetadata or exported as
-  OpenLineage events.
+* PySpark-скрипты для четырёх поддерживаемых паттернов загрузки —
+  Full / Incremental / SCD Type 1 / SCD Type 2;
+* DAG'и Apache Airflow по одному на слой хранилища;
+* DDL для внешних витрин Greenplum / ClickHouse;
+* граф происхождения данных уровня колонок — публикуется в OpenMetadata
+  или экспортируется в виде OpenLineage-событий.
 
-The framework is the implementation companion of the master's thesis
-"Разработка фреймворка автоматизации создания ETL-процессов на основе
-активных метаданных корпоративного хранилища данных" (РТУ МИРЭА, ИКМО-02-24).
-
-## Layout
+## Структура репозитория
 
 ```
 src/etl_framework/
-    models/         Pydantic v2 schema of an EntitySpec (active metadata)
-    repository/     Filesystem-backed YAML repository + cross-entity validator
-    discovery/      Postgres reflection that emits draft EntitySpecs
-    codegen/        Jinja2 templates and the generation engine
-    lineage/        Lineage builder + OpenMetadata publisher + OpenLineage exporter
-    security/       Secret-reference resolution and audit log
-    cli/            `etlf` CLI entry point (Typer)
-examples/retail/    Five reference EntitySpecs covering all four load strategies
-docker/             Postgres seed for the local OLTP source
-docker-compose.yml  Local stack: Postgres + MinIO + Spark + Airflow + OpenMetadata
-tests/              Pytest suite (48 tests; runs without docker)
+    models/         Pydantic v2-модель EntitySpec (активные метаданные)
+    repository/    Файловый YAML-репозиторий и кросс-сущностный валидатор
+    discovery/     Reflection PostgreSQL → черновая EntitySpec
+    codegen/       Jinja2-шаблоны и движок генерации
+    lineage/       Построитель lineage + публикация в OpenMetadata + OpenLineage
+    security/      Разрешение ссылок на секреты и журнал аудита
+    cli/           Команда `etlf` (Typer)
+examples/retail/   Пять эталонных EntitySpec, покрывающих все 4 стратегии загрузки
+docker/            Seed-данные для локального PostgreSQL-источника
+docker-compose.yml Локальный стек: Postgres + MinIO + Spark + Airflow + OpenMetadata
+tests/             Pytest-сюита (48 тестов; работает без docker)
 ```
 
-## Quickstart
+## Быстрый старт
 
 ```bash
-pip install -e ".[dev]"          # install with test/lint deps
-pytest -q                        # 48 tests, ~1s
+pip install -e ".[dev]"          # установка с dev-зависимостями
+pytest -q                        # 48 тестов, ~1 сек.
 
-# Validate the bundled retail repository
+# Валидация поставляемого ритейл-репозитория
 etlf validate examples/retail
 
-# Generate PySpark + Airflow DAGs into ./build
+# Генерация PySpark-скриптов и DAG'ов Airflow в ./build
 etlf generate examples/retail -o build --sql-sinks
 
-# Export OpenLineage events
+# Экспорт событий OpenLineage
 etlf lineage export examples/retail -o build/openlineage.json
 ```
 
-## Generating an entity from scratch
+## Создание новой сущности с нуля
 
 ```bash
-# Discover schema from a live Postgres instance and write a draft spec
+# Discovery схемы из живого PostgreSQL и формирование черновой спецификации
 OLTP_USER=oltp OLTP_PASSWORD=oltp \
   etlf discover examples/retail \
     --source postgres_oltp --schema public --table products \
     --layer stg \
     -o examples/retail/entities/stg_products.yaml
 
-# Then enrich the draft (load strategy, transforms, schedule) and commit it
+# Дальше — уточнить логику в YAML (стратегия загрузки, transform'ы,
+# расписание) и зафиксировать в git
 etlf validate examples/retail
 etlf generate examples/retail -o build
 ```
 
-## Local end-to-end stack
+## Локальный сквозной стенд
 
 ```bash
 docker compose up -d postgres-oltp minio minio-init
 docker compose up -d spark-master spark-worker
 docker compose up -d airflow-postgres airflow-init airflow-webserver airflow-scheduler
-# OpenMetadata is heavy — start only when needed:
+# OpenMetadata тяжёлый, поднимается только при необходимости:
 docker compose up -d openmetadata-mysql elasticsearch openmetadata
 ```
 
-Generated DAGs are bind-mounted into Airflow, so re-running `etlf generate`
-makes them appear in the scheduler within a minute. PySpark applications run
-on the Spark master via `SparkSubmitOperator`; the Iceberg/S3 catalog lives in
-MinIO under the `warehouse` bucket.
+Сгенерированные DAG'и подмонтированы в Airflow через bind-mount, поэтому
+повторный `etlf generate` приводит к их появлению в планировщике в течение
+минуты. PySpark-приложения уходят на Spark-мастер через `SparkSubmitOperator`;
+каталог Iceberg/S3 живёт в MinIO в бакете `warehouse`.
 
-## Spec format
+## Формат спецификации
 
-A minimum example:
+Минимальный пример:
 
 ```yaml
 apiVersion: etlf/v1
@@ -110,17 +107,28 @@ schedule:
   cron: "@hourly"
 ```
 
-See `examples/retail/entities/` for SCD1, SCD2, incremental, and downstream
-mart variants.
+Развёрнутые примеры для SCD1, SCD2, инкрементальной загрузки и витрины во
+внешний приёмник — см. `examples/retail/entities/`.
 
-## Secret references
+## Ссылки на секреты
 
-Connection passwords and similar sensitive fields use *secret references*,
-never literal values:
+Пароли подключений и прочие чувствительные поля задаются *ссылками на
+секреты*, а не литералами:
 
-* `env:NAME` — read from process environment
-* `file:/path` — read from a single-line file
-* anything else — treated as a literal (useful for local demos only)
+* `env:NAME` — читать из переменной окружения процесса;
+* `file:/path` — читать из однострочного файла;
+* всё остальное — литерал (годится только для локальных демо).
 
-References travel into generated PySpark code unchanged; resolution happens
-at job runtime, so `git diff` and the artifact registry never see secrets.
+Ссылка переносится в сгенерированный PySpark-код без изменений, секрет
+разрешается во время выполнения задачи. В итоге ни `git diff`, ни реестр
+артефактов никогда не видят литерального значения секрета.
+
+## Состав поставки
+
+* `pyproject.toml` — пакет `etl-framework` с extras `dev`, `openmetadata`, `spark`;
+* CLI: `etlf validate|generate|discover|lineage export|lineage publish`;
+* модель активных метаданных на Pydantic v2 со строгой валидацией;
+* шаблоны кодогенерации на Jinja2 — расширяются добавлением одного файла;
+* модули discovery, lineage, security, audit;
+* docker-compose-стек локального окружения;
+* pytest с покрытием всех компонентов.

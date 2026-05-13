@@ -1,4 +1,4 @@
-"""Tests for the security/secrets module."""
+"""Тесты модуля security/secrets."""
 
 from __future__ import annotations
 

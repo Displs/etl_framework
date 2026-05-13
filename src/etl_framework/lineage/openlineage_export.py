@@ -1,12 +1,12 @@
-"""Export the lineage graph as OpenLineage events (JSON).
+"""Экспорт графа происхождения данных в формате OpenLineage (JSON).
 
-The output format follows OpenLineage 1.x event spec
-(https://openlineage.io/spec/) — we emit a list of COMPLETE events, one per
-ETL job, with column-level transformation facets.
+Выходной формат соответствует спецификации OpenLineage 1.x
+(https://openlineage.io/spec/) — формируется список событий COMPLETE,
+по одному на каждую ETL-задачу, с фасетом column-level lineage.
 
-The exporter does not depend on the OpenLineage Python client; it produces
-plain dicts so the result can be sent to any OL backend (Marquez, custom HTTP)
-or saved to disk for offline inspection.
+Экспортер не зависит от python-клиента OpenLineage; он отдаёт обычные
+словари, которые можно отправить в любой OL-бэкенд (Marquez,
+самописный HTTP) или сохранить на диск для офлайн-анализа.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ class OpenLineageExporter:
         path.write_text(json.dumps(events, indent=2, ensure_ascii=False), encoding="utf-8")
         return path
 
-    # ------------------------------------------------------------- helpers
+    # ------------------------------------------------------------- хелперы
 
     @staticmethod
     def _dataset(ref: DatasetRef) -> dict:

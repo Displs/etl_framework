@@ -1,4 +1,4 @@
-"""Tests for the lineage subsystem."""
+"""Тесты подсистемы lineage."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def test_column_edges_match_mappings(retail_repo: MetadataRepository):
     by_job = {e.metadata.name: 0 for e in retail_repo.entities.values()}
     for ce in graph.column_edges:
         by_job[ce.job] += 1
-    # every direct/transform mapping should produce one column edge
+    # каждый прямой/transform-маппинг даёт одно колоночное ребро
     for name, ent in retail_repo.entities.items():
         expected = sum(1 for c in ent.mapping if c.source_columns())
         assert by_job[name] == expected, name
@@ -55,6 +55,6 @@ def test_openlineage_includes_column_lineage_facet(retail_repo: MetadataReposito
             if "facets" in out and "columnLineage" in out["facets"]:
                 facets_found = True
                 fields = out["facets"]["columnLineage"]["fields"]
-                # at least one column has at least one input field
+                # хотя бы у одной колонки есть хотя бы один input-field
                 assert any(f["inputFields"] for f in fields.values())
     assert facets_found

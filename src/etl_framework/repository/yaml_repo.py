@@ -1,16 +1,16 @@
-"""Filesystem-backed YAML repository of active metadata.
+"""Файловый YAML-репозиторий активных метаданных.
 
-Layout convention:
+Соглашение о структуре каталогов:
 
 ::
 
     <root>/
-        sources/*.yaml      # SourceSpec docs
-        entities/*.yaml     # EntitySpec docs
+        sources/*.yaml      # документы SourceSpec
+        entities/*.yaml     # документы EntitySpec
 
-The repository is intentionally read-only at runtime: spec authoring happens
-through git/PR workflow, not through the framework itself. This keeps the
-"single source of truth" principle from chapter 2.
+Репозиторий намеренно read-only во время работы фреймворка: авторинг
+спецификаций ведётся через git/PR, а не через фреймворк. Это сохраняет
+принцип «единого источника истины» из главы 2.
 """
 
 from __future__ import annotations
@@ -26,11 +26,11 @@ from ..models import EntitySpec, SourceSpec
 
 
 class RepositoryError(Exception):
-    """Raised when the repository is malformed (missing dirs, bad YAML, etc.)."""
+    """Поднимается, если репозиторий повреждён (нет каталогов, битый YAML и т. п.)."""
 
 
 class MetadataRepository:
-    """In-memory index of all loaded specs."""
+    """Индекс всех загруженных спецификаций в оперативной памяти."""
 
     def __init__(self, root: str | Path):
         self.root = Path(root)
@@ -38,17 +38,17 @@ class MetadataRepository:
         self._entities: dict[str, EntitySpec] = {}
         self._entity_paths: dict[str, Path] = {}
 
-    # ------------------------------------------------------------------ load
+    # ------------------------------------------------------------------ загрузка
 
     def load(self) -> None:
         if not self.root.is_dir():
-            raise RepositoryError(f"repository root does not exist: {self.root}")
+            raise RepositoryError(f"корень репозитория не существует: {self.root}")
 
         for path in self._iter_yaml(self.root / "sources"):
             spec = self._parse(path, SourceSpec)
             if spec.name in self._sources:
                 raise RepositoryError(
-                    f"duplicate source name '{spec.name}' (second occurrence: {path})"
+                    f"дубликат имени источника '{spec.name}' (второе появление: {path})"
                 )
             self._sources[spec.name] = spec
 
@@ -57,7 +57,7 @@ class MetadataRepository:
             name = spec.metadata.name
             if name in self._entities:
                 raise RepositoryError(
-                    f"duplicate entity name '{name}' (second occurrence: {path})"
+                    f"дубликат имени сущности '{name}' (второе появление: {path})"
                 )
             self._entities[name] = spec
             self._entity_paths[name] = path
@@ -75,15 +75,15 @@ class MetadataRepository:
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError as exc:
-            raise RepositoryError(f"{path}: invalid YAML: {exc}") from exc
+            raise RepositoryError(f"{path}: некорректный YAML: {exc}") from exc
         if not isinstance(data, dict):
-            raise RepositoryError(f"{path}: expected a mapping at the document root")
+            raise RepositoryError(f"{path}: ожидался mapping в корне документа")
         try:
             return model.model_validate(data)
         except PydanticValidationError as exc:
             raise RepositoryError(f"{path}: {exc}") from exc
 
-    # --------------------------------------------------------------- access
+    # --------------------------------------------------------------- доступ
 
     @property
     def sources(self) -> dict[str, SourceSpec]:
@@ -97,13 +97,13 @@ class MetadataRepository:
         try:
             return self._entities[name]
         except KeyError as exc:
-            raise KeyError(f"entity '{name}' not found in repository") from exc
+            raise KeyError(f"сущность '{name}' не найдена в репозитории") from exc
 
     def source(self, name: str) -> SourceSpec:
         try:
             return self._sources[name]
         except KeyError as exc:
-            raise KeyError(f"source '{name}' not found in repository") from exc
+            raise KeyError(f"источник '{name}' не найден в репозитории") from exc
 
     def entity_path(self, name: str) -> Path:
         return self._entity_paths[name]

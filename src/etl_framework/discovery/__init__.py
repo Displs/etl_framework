@@ -1,10 +1,11 @@
-"""Automatic metadata extraction from source systems.
+"""Автоматическое извлечение метаданных из систем-источников.
 
-The discovery layer reads physical schema information from a source system and
-emits a *spec stub* — a partially populated EntitySpec that the data engineer
-then enriches with mapping rules, load strategy and schedule. Stubs are
-deliberately conservative: every column becomes a direct copy with the same
-type, and no transforms are inferred.
+Слой discovery читает физическую информацию о схеме из системы-источника
+и формирует *черновую* EntitySpec — частично заполненную спецификацию,
+которую инженер данных затем обогащает правилами маппинга, стратегией
+загрузки и расписанием. Черновики намеренно консервативны: каждая
+колонка становится прямым переносом с тем же типом, никаких
+автоопределений преобразований не делается.
 """
 
 from .postgres import PostgresDiscoverer, discover_table

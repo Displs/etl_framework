@@ -1,8 +1,9 @@
-"""Active-metadata model.
+"""Модель активных метаданных.
 
-The model is intentionally split across multiple modules so that each concept
-(source, target, mapping, strategy, schedule) can evolve independently and so
-that error messages from Pydantic point to a meaningful location.
+Модель намеренно разделена на несколько модулей, чтобы каждое понятие
+(источник, целевая таблица, маппинг, стратегия, расписание) могло
+эволюционировать независимо, а сообщения об ошибках от Pydantic
+указывали на осмысленное место.
 """
 
 from .entity import AuditSpec, EntityMetadata, EntitySource, EntitySpec

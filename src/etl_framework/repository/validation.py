@@ -1,14 +1,12 @@
-"""Cross-entity validation passes.
+"""Кросс-сущностные проверки репозитория.
 
-Pydantic validators enforce *intra-document* invariants. This module enforces
-*inter-document* invariants:
+Валидаторы Pydantic обеспечивают *внутридокументные* инварианты. Этот
+модуль реализует *межсущностные* проверки:
 
-* every ``EntitySource.ref`` resolves to a known SourceSpec;
-* every ``schedule.depends_on`` resolves to a known entity;
-* the dependency graph contains no cycles;
-* every entity referenced by ``IncrementalLoad`` has a non-empty
-  ``watermark_column`` in the source ExtractSpec or relies on a target-side
-  watermark column that exists in the mapping.
+* каждая ``EntitySource.ref`` указывает на известный SourceSpec;
+* каждая запись в ``schedule.depends_on`` ссылается на известную сущность;
+* граф зависимостей не содержит циклов;
+* колонка-маркер инкрементальной загрузки присутствует в маппинге.
 """
 
 from __future__ import annotations
@@ -40,7 +38,7 @@ class ValidationError(Exception):
 
 
 def validate_repository(repo: MetadataRepository) -> list[ValidationIssue]:
-    """Run all cross-entity checks and return the collected issues."""
+    """Запустить все межсущностные проверки и вернуть список замечаний."""
     issues: list[ValidationIssue] = []
     issues.extend(_check_source_refs(repo))
     issues.extend(_check_dependencies(repo))
@@ -57,8 +55,8 @@ def _check_source_refs(repo: MetadataRepository) -> list[ValidationIssue]:
                 ValidationIssue(
                     "error",
                     name,
-                    f"source '{ent.source.source_name}' referenced by source.ref="
-                    f"'{ent.source.ref}' is not defined under sources/",
+                    f"источник '{ent.source.source_name}', указанный в source.ref="
+                    f"'{ent.source.ref}', не определён в каталоге sources/",
                 )
             )
     return out
@@ -74,7 +72,9 @@ def _check_dependencies(repo: MetadataRepository) -> list[ValidationIssue]:
             if dep not in repo.entities:
                 out.append(
                     ValidationIssue(
-                        "error", name, f"depends_on references unknown entity '{dep}'"
+                        "error",
+                        name,
+                        f"depends_on ссылается на неизвестную сущность '{dep}'",
                     )
                 )
                 continue
@@ -85,7 +85,7 @@ def _check_dependencies(repo: MetadataRepository) -> list[ValidationIssue]:
             ValidationIssue(
                 "error",
                 None,
-                "dependency cycle detected: " + " -> ".join(f"{u}->{v}" for u, v in cycle),
+                "обнаружен цикл в зависимостях: " + " -> ".join(f"{u}->{v}" for u, v in cycle),
             )
         )
     except nx.NetworkXNoCycle:
@@ -103,8 +103,8 @@ def _check_watermarks(repo: MetadataRepository) -> list[ValidationIssue]:
                     ValidationIssue(
                         "error",
                         name,
-                        f"incremental watermark_column '{ent.load.watermark_column}' "
-                        "is not present in mapping",
+                        f"колонка-маркер инкрементальной загрузки "
+                        f"'{ent.load.watermark_column}' отсутствует в mapping",
                     )
                 )
     return out
@@ -120,7 +120,7 @@ def _check_target_uniqueness(repo: MetadataRepository) -> list[ValidationIssue]:
                 ValidationIssue(
                     "error",
                     name,
-                    f"target table '{fqn}' is also written by entity '{seen[fqn]}'",
+                    f"в целевую таблицу '{fqn}' также пишет сущность '{seen[fqn]}'",
                 )
             )
         else:
@@ -129,7 +129,7 @@ def _check_target_uniqueness(repo: MetadataRepository) -> list[ValidationIssue]:
 
 
 def topological_order(repo: MetadataRepository) -> list[EntitySpec]:
-    """Return entities in dependency order, suitable for batch generation/loads."""
+    """Вернуть сущности в порядке зависимостей — пригодно для пакетной генерации/загрузки."""
     graph: nx.DiGraph = nx.DiGraph()
     for name in repo.entities:
         graph.add_node(name)

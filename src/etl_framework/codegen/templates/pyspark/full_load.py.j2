@@ -13,7 +13,8 @@ TARGET = "{{ spec.target.fqn }}"
 
 
 def load(df: DataFrame) -> None:
-    log.info("full load: replacing %s", TARGET)
+    # Полная перезагрузка: целевая таблица замещается результатом.
+    log.info("полная загрузка: замещаем %s", TARGET)
     writer = df.writeTo(TARGET).using("{{ spec.target.format.value }}")
 {% if spec.target.partition_by %}
     writer = writer.partitionedBy({% for p in spec.target.partition_by %}F.col("{{ p }}"){% if not loop.last %}, {% endif %}{% endfor %})
@@ -22,7 +23,7 @@ def load(df: DataFrame) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser = argparse.ArgumentParser(description="ETL-задача для {{ spec.metadata.name }}")
     parser.add_argument("--load-ts", default=None)
     parser.add_argument("--lower-bound", default=None)
     args = parser.parse_args(argv)
@@ -35,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
         raw = extract(spark, args.lower_bound)
         prepared = transform(raw, load_ts)
         load(prepared)
-        log.info("full load completed for %s", TARGET)
+        log.info("полная загрузка для %s завершена", TARGET)
     finally:
         spark.stop()
     return 0

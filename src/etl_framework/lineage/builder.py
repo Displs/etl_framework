@@ -1,9 +1,9 @@
-"""Compute the lineage graph from a metadata repository.
+"""Построение графа происхождения данных по репозиторию метаданных.
 
-Lineage is derived statically from ``ColumnMapping.source_columns()``. Free
-``expression`` mappings produce no column-level edges in v0.1; users may
-upgrade lineage by replacing ``expression`` with explicit per-source
-``transform`` rules.
+Lineage выводится статически из ``ColumnMapping.source_columns()``.
+Свободные ``expression``-маппинги в v0.1 не дают колоночных рёбер;
+пользователь может уточнить lineage, заменив ``expression`` явным
+правилом ``transform`` по одной колонке.
 """
 
 from __future__ import annotations
@@ -16,18 +16,24 @@ from ..repository import MetadataRepository
 
 @dataclass(frozen=True)
 class DatasetRef:
-    """Logical dataset identifier used as a lineage node."""
+    """Логический идентификатор датасета — узел графа lineage."""
 
     namespace: str
     name: str
 
     @classmethod
     def from_target(cls, spec: EntitySpec) -> DatasetRef:
-        return cls(namespace=f"iceberg://{spec.target.catalog}", name=f"{spec.target.schema_}.{spec.target.table}")
+        return cls(
+            namespace=f"iceberg://{spec.target.catalog}",
+            name=f"{spec.target.schema_}.{spec.target.table}",
+        )
 
     @classmethod
     def from_source(cls, source: SourceSpec, schema: str, table: str) -> DatasetRef:
-        ns = f"{source.connection.kind.value}://{source.connection.host}:{source.connection.port}/{source.connection.database}"
+        ns = (
+            f"{source.connection.kind.value}://{source.connection.host}:"
+            f"{source.connection.port}/{source.connection.database}"
+        )
         return cls(namespace=ns, name=f"{schema}.{table}")
 
     def __str__(self) -> str:
@@ -38,7 +44,7 @@ class DatasetRef:
 class DatasetEdge:
     upstream: DatasetRef
     downstream: DatasetRef
-    job: str  # entity name
+    job: str  # имя сущности (entity)
 
 
 @dataclass(frozen=True)

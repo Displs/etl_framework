@@ -1,4 +1,4 @@
-"""Render SQL DDL for external sinks (Greenplum / ClickHouse marts)."""
+"""Рендеринг SQL DDL для внешних приёмников (витрины Greenplum / ClickHouse)."""
 
 from __future__ import annotations
 

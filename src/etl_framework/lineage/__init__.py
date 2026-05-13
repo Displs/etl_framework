@@ -1,9 +1,9 @@
-"""Data-lineage subsystem.
+"""Подсистема происхождения данных.
 
-The lineage builder walks the metadata repository and produces a normalized
-``LineageGraph`` containing dataset-level and column-level edges. The graph is
-then published to OpenMetadata via the official SDK (or exported as
-OpenLineage JSON for offline catalogs).
+Построитель lineage обходит репозиторий метаданных и формирует
+нормализованный ``LineageGraph`` с рёбрами уровня датасета и колонок.
+Затем граф публикуется в OpenMetadata через официальный SDK или
+выгружается в формате OpenLineage для офлайн-каталогов.
 """
 
 from .builder import ColumnEdge, DatasetEdge, LineageBuilder, LineageGraph

@@ -1,10 +1,10 @@
-"""Enumerations used across the metadata model."""
+"""Перечисления, используемые в модели метаданных."""
 
 from enum import Enum
 
 
 class Layer(str, Enum):
-    """Logical layer of the corporate data warehouse."""
+    """Логический слой корпоративного хранилища данных."""
 
     STG = "stg"
     ODS = "ods"
@@ -13,7 +13,7 @@ class Layer(str, Enum):
 
 
 class LoadStrategy(str, Enum):
-    """Supported load patterns."""
+    """Поддерживаемые паттерны загрузки."""
 
     FULL = "full"
     INCREMENTAL = "incremental"
@@ -22,7 +22,7 @@ class LoadStrategy(str, Enum):
 
 
 class ExtractMode(str, Enum):
-    """Source extraction mode."""
+    """Режим извлечения из источника."""
 
     FULL = "full"
     INCREMENTAL = "incremental"
@@ -30,7 +30,7 @@ class ExtractMode(str, Enum):
 
 
 class TableFormat(str, Enum):
-    """Physical storage format for the target table."""
+    """Формат физического хранения целевой таблицы."""
 
     ICEBERG = "iceberg"
     PARQUET = "parquet"
@@ -38,7 +38,7 @@ class TableFormat(str, Enum):
 
 
 class SourceKind(str, Enum):
-    """Type of source system."""
+    """Тип системы-источника."""
 
     POSTGRES = "postgres"
     GREENPLUM = "greenplum"
@@ -47,7 +47,7 @@ class SourceKind(str, Enum):
 
 
 class SinkKind(str, Enum):
-    """Type of downstream sink for mart export."""
+    """Тип внешнего приёмника для экспорта витрин."""
 
     GREENPLUM = "greenplum"
     CLICKHOUSE = "clickhouse"

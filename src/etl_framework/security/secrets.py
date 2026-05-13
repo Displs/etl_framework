@@ -1,15 +1,16 @@
-"""Secret-reference resolution.
+"""Разрешение ссылок на секреты.
 
-A *secret reference* is a string with one of the following shapes:
+*Ссылка на секрет* — строка одного из следующих видов:
 
-* ``env:NAME`` — read from the environment variable ``NAME``;
-* ``file:/path/to/file`` — read the (single-line) file contents;
-* ``vault:path/to/secret#field`` — placeholder; raises ``NotImplementedError``;
-* anything else — returned verbatim, treated as a literal value.
+* ``env:NAME`` — читать из переменной окружения ``NAME``;
+* ``file:/path/to/file`` — читать содержимое (одну строку) из файла;
+* ``vault:path/to/secret#field`` — заглушка; поднимает ``NotImplementedError``;
+* всё остальное — возвращается как есть, трактуется как литеральное значение.
 
-Generated PySpark code never embeds the literal secret. Instead, it embeds the
-**reference** and resolves it at runtime using the same function. This keeps
-secrets out of the generated artifacts and out of git.
+Сгенерированный PySpark-код никогда не содержит литерального значения
+секрета. В код подставляется **ссылка**, разрешение выполняется
+в runtime той же функцией. Это удерживает секреты вне сгенерированных
+артефактов и вне git.
 """
 
 from __future__ import annotations
@@ -19,18 +20,20 @@ from pathlib import Path
 
 
 class SecretResolutionError(Exception):
-    """Raised when a secret reference cannot be resolved."""
+    """Поднимается, если ссылку на секрет не удалось разрешить."""
 
 
 def resolve_secret(ref: str) -> str:
-    """Resolve a secret reference at runtime.
+    """Разрешить ссылку на секрет в runtime.
 
-    The function is deliberately permissive: literal values (anything without a
-    ``scheme:`` prefix) pass through, so author-time examples can use plain
-    placeholders.
+    Функция намеренно либеральна: литералы (всё без префикса ``scheme:``)
+    проходят насквозь, чтобы примеры можно было писать с понятными
+    плейсхолдерами.
     """
     if not isinstance(ref, str):
-        raise SecretResolutionError(f"secret reference must be a string, got {type(ref).__name__}")
+        raise SecretResolutionError(
+            f"ссылка на секрет должна быть строкой, получено {type(ref).__name__}"
+        )
 
     if ref.startswith("env:"):
         var = ref[len("env:") :]
@@ -38,7 +41,7 @@ def resolve_secret(ref: str) -> str:
             return os.environ[var]
         except KeyError as exc:
             raise SecretResolutionError(
-                f"environment variable '{var}' is not set (required by '{ref}')"
+                f"переменная окружения '{var}' не установлена (нужна для '{ref}')"
             ) from exc
 
     if ref.startswith("file:"):
@@ -46,18 +49,20 @@ def resolve_secret(ref: str) -> str:
         try:
             return path.read_text(encoding="utf-8").strip()
         except OSError as exc:
-            raise SecretResolutionError(f"cannot read secret file '{path}': {exc}") from exc
+            raise SecretResolutionError(
+                f"не удалось прочитать файл секрета '{path}': {exc}"
+            ) from exc
 
     if ref.startswith("vault:"):
         raise NotImplementedError(
-            "Vault integration is not implemented in v0.1; use env: or file: for now"
+            "Интеграция с Vault в v0.1 не реализована; используйте env: или file:"
         )
 
     return ref
 
 
 def is_reference(value: str) -> bool:
-    """Return ``True`` if the string looks like a secret reference (not a literal)."""
+    """Вернуть ``True``, если строка похожа на ссылку на секрет, а не на литерал."""
     return isinstance(value, str) and any(
         value.startswith(prefix) for prefix in ("env:", "file:", "vault:")
     )

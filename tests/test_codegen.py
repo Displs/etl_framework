@@ -1,4 +1,4 @@
-"""Tests for the code-generation engine."""
+"""Тесты движка кодогенерации."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def test_all_pyspark_artifacts_parse(retail_repo: MetadataRepository):
     for ent in retail_repo.entities.values():
         src = retail_repo.source(ent.source.source_name)
         code = eng.render_entity(ent, src)
-        ast.parse(code)  # raises SyntaxError on bad output
+        ast.parse(code)  # бросит SyntaxError, если вывод сломан
 
 
 def test_full_load_template_contains_create_or_replace(retail_repo: MetadataRepository):
@@ -47,8 +47,8 @@ def test_scd2_template_two_step_merge(retail_repo: MetadataRepository):
     ent = retail_repo.entity("dds_clients")
     src = retail_repo.source(ent.source.source_name)
     code = CodegenEngine().render_entity(ent, src)
-    assert "scd2 step 1" in code
-    assert "scd2 step 2" in code
+    assert "SCD2 шаг 1" in code
+    assert "SCD2 шаг 2" in code
     assert "valid_from" in code and "valid_to" in code and "is_current" in code
 
 
@@ -58,7 +58,7 @@ def test_codegen_is_deterministic(retail_repo: MetadataRepository):
     src = retail_repo.source(ent.source.source_name)
     a = eng.render_entity(ent, src)
     b = eng.render_entity(ent, src)
-    # generated_at differs by seconds; strip the header for the comparison
+    # generated_at различается на секундах; для сравнения отрезаем шапку
     a_body = "\n".join(a.splitlines()[5:])
     b_body = "\n".join(b.splitlines()[5:])
     assert a_body == b_body
@@ -70,7 +70,7 @@ def test_audit_columns_appear(retail_repo: MetadataRepository):
     code = CodegenEngine().render_entity(ent, src)
     assert "load_ts" in code
     assert "source_system" in code
-    assert "record_hash" in code  # default audit
+    assert "record_hash" in code  # из дефолтов AuditSpec
 
 
 def test_unknown_strategy_raises():
@@ -98,9 +98,9 @@ def test_airflow_dag_orders_dependencies(retail_repo: MetadataRepository):
 
     dds_dag = dags[Layer.DDS]
     assert 'tasks["stg_clients"] >> tasks["dds_clients"]' not in dds_dag, (
-        "cross-layer deps are excluded from in-layer DAG body"
+        "межслойные зависимости не должны попадать в тело DAG'а одного слоя"
     )
-    # within dds, products and clients have no intra-layer deps:
+    # в слое dds сущности products и clients независимы:
     assert "dds_clients" in dds_dag
     assert "dds_products" in dds_dag
 

@@ -1,10 +1,10 @@
-"""Render Airflow DAGs from a metadata repository.
+"""Генерация DAG'ов Airflow по репозиторию метаданных.
 
-The generator emits **one DAG per layer** (stg/ods/dds/dm). Each DAG schedule
-is the most frequent schedule among its entities, falling back to ``@daily``.
-Cross-layer dependencies become Airflow ``ExternalTaskSensor`` references in a
-later iteration; for v0.1 we keep them implicit by ordering layers in the
-dependency graph.
+Генератор формирует **по одному DAG на слой** (stg/ods/dds/dm).
+Расписание DAG'а — самое частое расписание среди его сущностей; если
+сущностей у слоя нет — fallback на ``@daily``. Межслойные зависимости в
+будущей версии станут ссылками через ``ExternalTaskSensor``; в v0.1 они
+выражены неявно через порядок запуска слоёв в общем графе зависимостей.
 """
 
 from __future__ import annotations
@@ -29,7 +29,11 @@ class _TaskDescriptor:
 
 
 class AirflowDagGenerator:
-    def __init__(self, template_dir: Path | None = None, application_root: str = "/opt/etl/pyspark"):
+    def __init__(
+        self,
+        template_dir: Path | None = None,
+        application_root: str = "/opt/etl/pyspark",
+    ):
         if template_dir is None:
             with resources.as_file(
                 resources.files("etl_framework").joinpath("codegen/templates/airflow")
@@ -49,7 +53,7 @@ class AirflowDagGenerator:
     def render_layer(self, repo: MetadataRepository, layer: Layer) -> str:
         layer_entities = [e for e in repo.entities.values() if e.metadata.layer == layer]
         if not layer_entities:
-            raise ValueError(f"no entities for layer {layer.value}")
+            raise ValueError(f"в слое {layer.value} нет сущностей")
 
         tasks = [
             _TaskDescriptor(
@@ -63,7 +67,7 @@ class AirflowDagGenerator:
             for ent in _topo_within_layer(layer_entities)
         ]
 
-        # Pick the most-frequent cron among layer entities; fallback to @daily.
+        # Самое частое cron-выражение среди сущностей слоя; иначе @daily.
         crons = [e.schedule.cron for e in layer_entities]
         cron = max(set(crons), key=crons.count) if crons else "@daily"
         catchups = [e.schedule.catchup for e in layer_entities]
@@ -96,7 +100,7 @@ class AirflowDagGenerator:
 
 
 def _topo_within_layer(entities: list[EntitySpec]) -> list[EntitySpec]:
-    """Order entities within a layer by intra-layer dependencies."""
+    """Упорядочивание сущности слоя по внутрислойным зависимостям."""
     import networkx as nx
 
     g: nx.DiGraph = nx.DiGraph()

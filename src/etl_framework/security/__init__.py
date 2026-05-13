@@ -1,4 +1,4 @@
-"""Information-security-related utilities (secret resolution, audit log)."""
+"""Утилиты информационной безопасности (разрешение секретов, журнал аудита)."""
 
 from .audit import AuditEvent, AuditLogger, audit_event
 from .secrets import SecretResolutionError, resolve_secret

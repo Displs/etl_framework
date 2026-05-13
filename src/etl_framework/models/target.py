@@ -1,4 +1,4 @@
-"""Target table specifications."""
+"""Спецификации целевых таблиц."""
 
 from __future__ import annotations
 
@@ -8,11 +8,11 @@ from .enums import TableFormat
 
 
 class TargetTable(BaseModel):
-    """Where to write the data.
+    """Куда писать данные.
 
-    The catalog/schema/table triple identifies the table in the Spark/Iceberg
-    catalog. The framework does not create the catalog itself — it must already
-    exist in the Spark configuration.
+    Тройка catalog/schema/table идентифицирует таблицу в каталоге
+    Spark/Iceberg. Сам каталог фреймворком не создаётся — он должен быть
+    предварительно зарегистрирован в конфигурации Spark.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -23,12 +23,12 @@ class TargetTable(BaseModel):
     format: TableFormat = TableFormat.ICEBERG
     location: str | None = Field(
         default=None,
-        description="Optional explicit location URI (s3a://bucket/path) for non-managed tables",
+        description="Явный URI размещения (s3a://bucket/path) для unmanaged-таблиц",
     )
     partition_by: list[str] = Field(default_factory=list)
     properties: dict[str, str] = Field(
         default_factory=dict,
-        description="Iceberg table properties, e.g. write.format.default=orc",
+        description="Свойства Iceberg-таблицы, например write.format.default=orc",
     )
 
     @property
@@ -37,7 +37,7 @@ class TargetTable(BaseModel):
 
 
 class SinkTable(BaseModel):
-    """External downstream sink (Greenplum/ClickHouse mart export)."""
+    """Внешний приёмник для экспорта витрин (Greenplum/ClickHouse)."""
 
     model_config = ConfigDict(extra="forbid")
 

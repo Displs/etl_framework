@@ -1,4 +1,4 @@
-"""Typer-based CLI entry points."""
+"""CLI на основе Typer."""
 
 from .main import app
 

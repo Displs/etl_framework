@@ -16,6 +16,8 @@ TRACKED_COLUMNS = [{% for c in tracked %}"{{ c }}"{% if not loop.last %}, {% end
 
 
 def merge_upsert(spark: SparkSession, df: DataFrame) -> None:
+    # SCD Type 1 — upsert по бизнес-ключу: существующие записи
+    # перезаписываются, история не сохраняется.
     df.createOrReplaceTempView("source_batch")
     on_clause = " AND ".join(f"t.{k} = s.{k}" for k in BUSINESS_KEYS)
     update_set = ", ".join(f"t.{c} = s.{c}" for c in TRACKED_COLUMNS + [
@@ -48,12 +50,12 @@ def merge_upsert(spark: SparkSession, df: DataFrame) -> None:
         WHEN NOT MATCHED
             THEN INSERT ({insert_cols}) VALUES ({insert_vals})
     """
-    log.info("scd1 merge into %s", TARGET)
+    log.info("SCD1 merge в %s", TARGET)
     spark.sql(sql)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser = argparse.ArgumentParser(description="ETL-задача для {{ spec.metadata.name }}")
     parser.add_argument("--load-ts", default=None)
     parser.add_argument("--lower-bound", default=None)
     args = parser.parse_args(argv)
@@ -66,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         raw = extract(spark, args.lower_bound)
         prepared = transform(raw, load_ts)
         merge_upsert(spark, prepared)
-        log.info("scd1 load completed for %s", TARGET)
+        log.info("SCD1-загрузка для %s завершена", TARGET)
     finally:
         spark.stop()
     return 0

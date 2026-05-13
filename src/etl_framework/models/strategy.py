@@ -1,8 +1,8 @@
-"""Load-strategy descriptors.
+"""Описания стратегий загрузки.
 
-Each load strategy is represented by its own model so that required parameters
-(e.g. business keys for SCD2) are checked statically by Pydantic instead of by
-the codegen engine.
+Каждая стратегия представлена собственной моделью, чтобы обязательные
+параметры (например, бизнес-ключи для SCD2) проверялись статически
+средствами Pydantic, а не в коде кодогенерации.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ class IncrementalLoad(_StrategyBase):
     strategy: Literal[LoadStrategy.INCREMENTAL] = LoadStrategy.INCREMENTAL
     business_keys: list[str] = Field(min_length=1)
     watermark_column: str = Field(
-        description="Target-side watermark column used to compute the next load offset"
+        description="Колонка-маркер в целевой таблице, по которой вычисляется следующий offset"
     )
 
 
@@ -35,7 +35,7 @@ class SCD1Load(_StrategyBase):
     business_keys: list[str] = Field(min_length=1)
     tracked_columns: list[str] = Field(
         default_factory=list,
-        description="Columns whose changes trigger an update; empty means all non-key cols",
+        description="Колонки, изменения которых приводят к UPDATE; пустой список — все не-ключевые",
     )
 
 
@@ -48,7 +48,7 @@ class SCD2Load(_StrategyBase):
     current_flag: str = "is_current"
     end_of_time: str = Field(
         default="9999-12-31",
-        description="Sentinel value used to mark currently-active versions",
+        description="Значение-метка для актуальных (открытых) версий",
     )
 
 

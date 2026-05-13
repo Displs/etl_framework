@@ -1,4 +1,4 @@
-"""Top-level entity specification — the unit of active metadata."""
+"""Спецификация сущности верхнего уровня — единица активных метаданных."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from .target import SinkTable, TargetTable
 
 
 class AuditSpec(BaseModel):
-    """Technical audit columns appended to every loaded record."""
+    """Технические колонки аудита, добавляемые к каждой загруженной записи."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -23,12 +23,13 @@ class AuditSpec(BaseModel):
 
 
 class EntitySource(BaseModel):
-    """Reference from an entity to a source table."""
+    """Ссылка из сущности на таблицу источника."""
 
     model_config = ConfigDict(extra="forbid")
 
     ref: str = Field(
-        description="Dotted reference 'source_name.schema.table'", pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){2}$"
+        description="Точечная ссылка 'имя_источника.схема.таблица'",
+        pattern=r"^[a-z0-9_]+(\.[a-z0-9_]+){2}$",
     )
 
     @property
@@ -55,10 +56,10 @@ class EntityMetadata(BaseModel):
 
 
 class EntitySpec(BaseModel):
-    """Active-metadata specification for a single ETL process.
+    """Спецификация активных метаданных одного ETL-процесса.
 
-    A YAML document corresponds 1:1 to one ``EntitySpec`` and produces one
-    Airflow task and one PySpark application during code generation.
+    Один YAML-документ соответствует одной ``EntitySpec`` и порождает
+    одну задачу Airflow и одно PySpark-приложение при кодогенерации.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -77,7 +78,7 @@ class EntitySpec(BaseModel):
     @model_validator(mode="after")
     def _check_kind(self) -> EntitySpec:
         if self.kind != "Entity":
-            raise ValueError(f"unsupported kind '{self.kind}'; expected 'Entity'")
+            raise ValueError(f"неподдерживаемый kind '{self.kind}'; ожидался 'Entity'")
         return self
 
     @model_validator(mode="after")
@@ -85,7 +86,7 @@ class EntitySpec(BaseModel):
         seen: set[str] = set()
         for col in self.mapping:
             if col.target in seen:
-                raise ValueError(f"duplicate target column '{col.target}'")
+                raise ValueError(f"дубликат целевой колонки '{col.target}'")
             seen.add(col.target)
         return self
 
@@ -97,21 +98,21 @@ class EntitySpec(BaseModel):
             missing = [k for k in bk if k not in targets]
             if missing:
                 raise ValueError(
-                    f"business_keys reference unknown target columns: {missing}"
+                    f"business_keys ссылается на неизвестные целевые колонки: {missing}"
                 )
         tracked = getattr(self.load, "tracked_columns", None)
         if tracked:
             missing = [c for c in tracked if c not in targets]
             if missing:
                 raise ValueError(
-                    f"tracked_columns reference unknown target columns: {missing}"
+                    f"tracked_columns ссылается на неизвестные целевые колонки: {missing}"
                 )
         if self.load.strategy == LoadStrategy.SCD2:
             for fld in ("effective_from", "effective_to", "current_flag"):
                 if getattr(self.load, fld) in targets:
                     raise ValueError(
-                        f"SCD2 technical column '{getattr(self.load, fld)}' "
-                        "must not be present in mapping (it is generated)"
+                        f"техническая колонка SCD2 '{getattr(self.load, fld)}' "
+                        "не должна присутствовать в mapping (она генерируется автоматически)"
                     )
         return self
 

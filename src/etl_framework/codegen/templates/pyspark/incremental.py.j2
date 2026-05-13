@@ -15,17 +15,19 @@ BUSINESS_KEYS = [{% for k in spec.load.business_keys %}"{{ k }}"{% if not loop.l
 
 
 def append(df: DataFrame) -> None:
-    log.info("incremental append into %s (watermark=%s)", TARGET, WATERMARK_COLUMN)
+    # Инкрементальная дозагрузка — режим append; идемпотентность
+    # обеспечивает фильтр по watermark на стороне извлечения.
+    log.info("инкрементальная дозагрузка в %s (watermark=%s)", TARGET, WATERMARK_COLUMN)
     df.writeTo(TARGET).using("{{ spec.target.format.value }}").append()
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser = argparse.ArgumentParser(description="ETL-задача для {{ spec.metadata.name }}")
     parser.add_argument("--load-ts", default=None)
     parser.add_argument(
         "--lower-bound",
         default=None,
-        help="ISO timestamp; rows with watermark > lower_bound are loaded",
+        help="ISO-таймстемп; в загрузку идут строки с watermark > lower_bound",
     )
     args = parser.parse_args(argv)
     load_ts = (
@@ -38,9 +40,10 @@ def main(argv: list[str] | None = None) -> int:
         prepared = transform(raw, load_ts)
         append(prepared)
         new_max = prepared.agg(F.max(WATERMARK_COLUMN)).collect()[0][0]
-        log.info("incremental load completed; new max watermark = %s", new_max)
+        log.info("инкрементальная загрузка завершена; новый максимум watermark = %s", new_max)
         if new_max is not None:
-            print(f"WATERMARK={new_max}")  # captured by Airflow XCom push
+            # Печатается в stdout — пробрасывается обратно в Airflow через XCom.
+            print(f"WATERMARK={new_max}")
     finally:
         spark.stop()
     return 0

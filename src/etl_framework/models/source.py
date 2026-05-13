@@ -1,8 +1,9 @@
-"""Source-system specifications.
+"""Спецификации систем-источников.
 
-A SourceSpec describes how to connect to a source system and how to extract a
-specific table. SourceSpecs are stored as separate YAML files and referenced
-from EntitySpec via dotted ``source_ref`` like ``postgres_oltp.public.clients``.
+``SourceSpec`` описывает, как подключиться к системе-источнику и как
+извлечь конкретную таблицу. Каждый ``SourceSpec`` хранится в отдельном
+YAML-файле и упоминается из ``EntitySpec`` через точечную ссылку
+``source_ref`` вида ``postgres_oltp.public.clients``.
 """
 
 from __future__ import annotations
@@ -13,10 +14,11 @@ from .enums import ExtractMode, SourceKind
 
 
 class SourceConnection(BaseModel):
-    """Connection parameters for a source system.
+    """Параметры подключения к системе-источнику.
 
-    Sensitive fields are stored as references resolved at runtime by
-    :mod:`etl_framework.security.secrets` (e.g. ``env:PG_PASSWORD``).
+    Чувствительные поля хранятся как ссылки на секреты, разрешаемые
+    в runtime через :mod:`etl_framework.security.secrets`
+    (например, ``env:PG_PASSWORD``).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -25,30 +27,30 @@ class SourceConnection(BaseModel):
     host: str
     port: int
     database: str
-    user: str = Field(description="Plain user or secret reference")
-    password: str = Field(description="Secret reference, e.g. env:PG_PASSWORD")
+    user: str = Field(description="Логин или ссылка на секрет")
+    password: str = Field(description="Ссылка на секрет, например env:PG_PASSWORD")
     jdbc_options: dict[str, str] = Field(default_factory=dict)
 
 
 class ExtractSpec(BaseModel):
-    """How to read data from the source."""
+    """Параметры извлечения из источника."""
 
     model_config = ConfigDict(extra="forbid")
 
     mode: ExtractMode = ExtractMode.FULL
     watermark_column: str | None = Field(
         default=None,
-        description="Column used to filter incremental slices; required for INCREMENTAL mode",
+        description="Колонка-маркер для инкрементальной выборки; обязательна для режима INCREMENTAL",
     )
     cdc_slot: str | None = Field(
         default=None,
-        description="Logical replication slot name; required for CDC mode",
+        description="Имя слота логической репликации; обязательно для режима CDC",
     )
     fetch_size: int = 10_000
 
 
 class SourceTable(BaseModel):
-    """Logical pointer to a source table."""
+    """Логический указатель на таблицу источника."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -58,7 +60,7 @@ class SourceTable(BaseModel):
 
 
 class SourceSpec(BaseModel):
-    """Top-level source specification, stored as a YAML document."""
+    """Спецификация источника верхнего уровня, хранимая как YAML-документ."""
 
     model_config = ConfigDict(extra="forbid")
 

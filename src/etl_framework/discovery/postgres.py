@@ -1,9 +1,9 @@
-"""PostgreSQL discovery via SQLAlchemy reflection.
+"""Discovery PostgreSQL через reflection SQLAlchemy.
 
-The discoverer connects to a source via the connection details from a
-``SourceSpec`` and emits a draft ``EntitySpec`` skeleton (as a Python dict
-suitable for ``yaml.dump``). It does **not** write to disk — that is the CLI's
-job.
+Discoverer подключается к источнику по параметрам из ``SourceSpec`` и
+формирует черновой каркас ``EntitySpec`` (словарь Python, пригодный для
+сериализации через ``yaml.dump``). На диск ничего не пишет — это
+ответственность CLI.
 """
 
 from __future__ import annotations
@@ -17,8 +17,8 @@ from sqlalchemy.engine import Engine
 from ..models import Layer, SourceSpec
 from ..security.secrets import resolve_secret
 
-# Map of PostgreSQL types to canonical Spark/SQL types used in the EntitySpec.
-# Conservative — anything unknown becomes STRING.
+# Соответствие «тип PostgreSQL → канонический тип Spark/SQL» для EntitySpec.
+# Консервативно: всё неизвестное превращается в STRING.
 _PG_TO_CANONICAL: dict[str, str] = {
     "smallint": "SMALLINT",
     "integer": "INT",
@@ -67,13 +67,13 @@ class DiscoveredTable:
 
 
 class PostgresDiscoverer:
-    """Wraps a SQLAlchemy engine for repeated reflection calls."""
+    """Обёртка вокруг SQLAlchemy-engine для повторных запросов reflection."""
 
     def __init__(self, source: SourceSpec):
         if source.connection.kind.value != "postgres":
             raise ValueError(
-                f"PostgresDiscoverer can only discover postgres sources, "
-                f"got '{source.connection.kind.value}'"
+                f"PostgresDiscoverer поддерживает только источники postgres, "
+                f"получено '{source.connection.kind.value}'"
             )
         self.source = source
         self._engine: Engine | None = None
@@ -95,12 +95,13 @@ class PostgresDiscoverer:
         inspector = inspect(self.engine)
         cols_info = inspector.get_columns(table, schema=schema)
         if not cols_info:
-            raise ValueError(f"table {schema}.{table} not found or empty")
+            raise ValueError(f"таблица {schema}.{table} не найдена или пуста")
         pk_info = inspector.get_pk_constraint(table, schema=schema) or {}
         pk_cols = set(pk_info.get("constrained_columns") or [])
 
-        # SQLAlchemy gives a "type" object, but its string form is dialect-specific;
-        # we re-read information_schema for portable type names.
+        # SQLAlchemy отдаёт объект type, но его строковое представление
+        # зависит от диалекта; для переносимых имён типов перечитываем
+        # information_schema через reflection с компиляцией под диалект.
         meta = MetaData()
         sqla_table = Table(table, meta, autoload_with=self.engine, schema=schema)
         cols: list[DiscoveredColumn] = []
@@ -127,10 +128,10 @@ def discover_table(
     target_schema: str | None = None,
     target_table: str | None = None,
 ) -> dict[str, Any]:
-    """Return a dict ready to be dumped as the YAML body of an EntitySpec stub.
+    """Вернуть словарь, готовый к сериализации в YAML-черновик EntitySpec.
 
-    The stub uses ``full`` load strategy and direct mappings; the engineer is
-    expected to refine it (especially for SCD tables).
+    Черновик использует стратегию ``full`` и прямые маппинги; инженер
+    данных дальше уточняет логику (особенно для SCD-таблиц).
     """
     discovered = PostgresDiscoverer(source).discover(schema, table)
     target_schema = target_schema or target_layer.value
@@ -153,7 +154,7 @@ def discover_table(
         "metadata": {
             "name": f"{target_layer.value}_{table}",
             "layer": target_layer.value,
-            "description": f"Auto-discovered from {source.name}.{schema}.{table}",
+            "description": f"Автоматически распознано из {source.name}.{schema}.{table}",
         },
         "source": {"ref": f"{source.name}.{schema}.{table}"},
         "target": {

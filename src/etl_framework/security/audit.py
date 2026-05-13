@@ -1,9 +1,10 @@
-"""Audit-log support for the framework itself.
+"""Журнал аудита фреймворка.
 
-Every code-generation, lineage publication and discovery run produces a
-structured audit record. The records are intentionally append-only JSONL: they
-are written to the artifact directory next to the generated code so that a
-reviewer can answer "who generated this DAG and from which spec version".
+Каждый прогон кодогенерации, публикации lineage и discovery порождает
+структурированную запись аудита. Записи намеренно append-only JSONL:
+они пишутся в каталог с артефактами рядом со сгенерированным кодом, чтобы
+ревьюер мог ответить, «кто сгенерировал этот DAG и из какой версии
+спецификации».
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ class AuditEvent:
 
 
 class AuditLogger:
-    """Append JSONL records to ``<root>/.audit.log``."""
+    """Дописывает JSONL-записи в файл ``<root>/.audit.log``."""
 
     def __init__(self, root: str | Path):
         self.path = Path(root) / ".audit.log"

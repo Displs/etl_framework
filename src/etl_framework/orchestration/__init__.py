@@ -1,1 +1,1 @@
-"""Orchestrator-facing helpers (Airflow DAG generation lives in codegen)."""
+"""Утилиты для интеграции с оркестратором (генерация DAG'ов — в codegen)."""

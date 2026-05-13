@@ -1,4 +1,4 @@
-"""Shared fixtures for the test suite."""
+"""Общие фикстуры для тестовой сюиты."""
 
 from __future__ import annotations
 

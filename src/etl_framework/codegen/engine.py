@@ -1,9 +1,10 @@
-"""Code-generation engine.
+"""Движок кодогенерации.
 
-The engine is intentionally thin: it builds a Jinja2 environment loaded from
-``codegen/templates/`` and dispatches each EntitySpec to the template that
-matches its load strategy. Adding a new strategy = adding a new template +
-one line in ``_TEMPLATE_FOR_STRATEGY``.
+Движок намеренно тонкий: он создаёт окружение Jinja2 с загрузкой шаблонов
+из ``codegen/templates/`` и направляет каждую ``EntitySpec`` в шаблон,
+соответствующий её стратегии загрузки. Добавление новой стратегии
+сводится к добавлению нового шаблона и одной строки в
+``_TEMPLATE_FOR_STRATEGY``.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from .. import __version__
 from ..models import EntitySpec, LoadStrategy, SourceSpec
 from ..repository import MetadataRepository
 
+# Соответствие «стратегия загрузки → имя файла шаблона».
 _TEMPLATE_FOR_STRATEGY: dict[LoadStrategy, str] = {
     LoadStrategy.FULL: "pyspark/full_load.py.j2",
     LoadStrategy.INCREMENTAL: "pyspark/incremental.py.j2",
@@ -36,6 +38,7 @@ class GeneratedArtifact:
     checksum: str
 
     def write(self, root: Path) -> Path:
+        """Сохранить артефакт в каталог ``root``."""
         path = root / self.relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(self.content, encoding="utf-8")
@@ -43,7 +46,7 @@ class GeneratedArtifact:
 
 
 class CodegenEngine:
-    """Renders artifacts for an entire repository."""
+    """Рендерит артефакты для всех сущностей репозитория."""
 
     def __init__(self, template_dir: Path | None = None):
         if template_dir is None:
@@ -67,12 +70,12 @@ class CodegenEngine:
     # -------------------------------------------------------------- API
 
     def render_entity(self, spec: EntitySpec, source: SourceSpec) -> str:
-        """Render the PySpark script for one entity."""
+        """Сформировать PySpark-скрипт для одной сущности."""
         try:
             template_name = _TEMPLATE_FOR_STRATEGY[spec.load.strategy]
         except KeyError as exc:
             raise NotImplementedError(
-                f"no template registered for load strategy {spec.load.strategy}"
+                f"для стратегии загрузки {spec.load.strategy} не зарегистрирован шаблон"
             ) from exc
         template = self._env.get_template(template_name)
         return template.render(
@@ -85,7 +88,7 @@ class CodegenEngine:
     def generate_repository(
         self, repo: MetadataRepository, output_dir: Path
     ) -> list[GeneratedArtifact]:
-        """Render all entities, returning artifact records."""
+        """Сформировать все сущности репозитория и вернуть описания артефактов."""
         artifacts: list[GeneratedArtifact] = []
         for name, ent in repo.entities.items():
             src = repo.source(ent.source.source_name)
@@ -95,7 +98,7 @@ class CodegenEngine:
         return artifacts
 
 
-# -------------------------------------------------------------------- helpers
+# -------------------------------------------------------------------- хелперы
 
 
 def _artifact(rel: Path, content: str) -> GeneratedArtifact:
@@ -104,10 +107,11 @@ def _artifact(rel: Path, content: str) -> GeneratedArtifact:
 
 
 def _sql_ident(name: str) -> str:
-    """Quote a SQL identifier conservatively.
+    """Заключить SQL-идентификатор в обратные кавычки.
 
-    The Spark SQL parser accepts back-tick quoting and the Iceberg catalog
-    namespace style. We use back-ticks to be safe with reserved words.
+    Парсер Spark SQL принимает back-tick-кавычки, формат соответствует
+    каталоговой нотации Iceberg. Используем back-tick'и, чтобы безопасно
+    обходить зарезервированные слова.
     """
     return f"`{name}`" if not name.startswith("`") else name
 

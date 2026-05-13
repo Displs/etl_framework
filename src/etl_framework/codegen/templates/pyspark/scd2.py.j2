@@ -19,6 +19,8 @@ END_OF_TIME = "{{ spec.load.end_of_time }}"
 
 
 def merge_scd2(spark: SparkSession, df: DataFrame, load_ts: str) -> None:
+    # SCD Type 2 — ведение полной истории. Каждое изменение породит
+    # новую версию записи; предыдущая закрывается датой effective_to.
     df = (
         df
         .withColumn(EFFECTIVE_FROM, F.lit(load_ts).cast("timestamp"))
@@ -32,7 +34,8 @@ def merge_scd2(spark: SparkSession, df: DataFrame, load_ts: str) -> None:
         f"NOT (t.{c} <=> s.{c})" for c in TRACKED_COLUMNS
     )
 
-    # Step 1: close currently active versions whose tracked attributes differ
+    # Шаг 1: закрыть текущие версии, у которых изменились отслеживаемые
+    # атрибуты — выставляем effective_to и сбрасываем is_current.
     close_sql = f"""
         MERGE INTO {TARGET} AS t
         USING source_batch AS s
@@ -42,10 +45,11 @@ def merge_scd2(spark: SparkSession, df: DataFrame, load_ts: str) -> None:
                 t.{EFFECTIVE_TO} = s.{EFFECTIVE_FROM},
                 t.{CURRENT_FLAG} = FALSE
     """
-    log.info("scd2 step 1 (close): %s", TARGET)
+    log.info("SCD2 шаг 1 (закрытие версий): %s", TARGET)
     spark.sql(close_sql)
 
-    # Step 2: insert new versions for new keys and for changed records
+    # Шаг 2: вставить новые версии — для новых ключей и для изменившихся
+    # записей (после шага 1 у них больше нет открытой версии).
     cols = (
         BUSINESS_KEYS
         + TRACKED_COLUMNS
@@ -65,12 +69,12 @@ def merge_scd2(spark: SparkSession, df: DataFrame, load_ts: str) -> None:
         WHEN NOT MATCHED
             THEN INSERT ({insert_cols}) VALUES ({insert_vals})
     """
-    log.info("scd2 step 2 (insert new versions): %s", TARGET)
+    log.info("SCD2 шаг 2 (вставка новых версий): %s", TARGET)
     spark.sql(insert_sql)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="ETL job for {{ spec.metadata.name }}")
+    parser = argparse.ArgumentParser(description="ETL-задача для {{ spec.metadata.name }}")
     parser.add_argument("--load-ts", default=None)
     parser.add_argument("--lower-bound", default=None)
     args = parser.parse_args(argv)
@@ -83,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
         raw = extract(spark, args.lower_bound)
         prepared = transform(raw, load_ts)
         merge_scd2(spark, prepared, load_ts.isoformat())
-        log.info("scd2 load completed for %s", TARGET)
+        log.info("SCD2-загрузка для %s завершена", TARGET)
     finally:
         spark.stop()
     return 0

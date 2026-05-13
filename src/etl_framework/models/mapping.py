@@ -1,13 +1,13 @@
-"""Column mapping rules.
+"""Правила маппинга колонок.
 
-A ColumnMapping describes how a single target column is produced from one or
-more source columns. The framework supports three forms:
+``ColumnMapping`` описывает, как формируется одна колонка целевой таблицы
+из одной или нескольких колонок источника. Поддерживается три формы:
 
-* direct copy (``source`` set, ``transform`` and ``expression`` empty)
-* scalar transform of a single source column (``transform`` is a Spark SQL
-  fragment with ``$`` placeholder substituted by the source column name)
-* free expression over multiple source columns (``expression`` is a Spark SQL
-  expression evaluated against the source DataFrame)
+* прямой перенос (``source`` задан, ``transform`` и ``expression`` пусты);
+* скалярное преобразование одной исходной колонки (``transform`` — фрагмент
+  Spark SQL; символ ``$`` подставляется именем исходной колонки);
+* свободное выражение над несколькими исходными колонками (``expression`` —
+  выражение Spark SQL, вычисляемое над DataFrame источника).
 """
 
 from __future__ import annotations
@@ -16,27 +16,28 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ColumnMapping(BaseModel):
-    """Mapping rule for one target column."""
+    """Правило формирования одной целевой колонки."""
 
     model_config = ConfigDict(extra="forbid")
 
     target: str = Field(pattern=r"^[a-z_][a-z0-9_]*$")
-    type: str = Field(description="Target Spark/SQL type, e.g. BIGINT, VARCHAR(120)")
+    type: str = Field(description="Тип целевой колонки в Spark/SQL, например BIGINT или VARCHAR(120)")
     source: str | None = Field(
-        default=None, description="Source column name for direct or scalar-transform mappings"
+        default=None,
+        description="Имя исходной колонки для прямого переноса или скалярного transform",
     )
     transform: str | None = Field(
         default=None,
-        description="Single-column transform; '$' is substituted by the source column",
+        description="Преобразование одной колонки; символ '$' заменяется именем источника",
     )
     expression: str | None = Field(
         default=None,
-        description="Free Spark SQL expression for multi-source derived columns",
+        description="Свободное Spark SQL-выражение для производных колонок из нескольких источников",
     )
     null_default: str | None = Field(
-        default=None, description="SQL literal used to replace NULLs"
+        default=None, description="SQL-литерал, подставляемый вместо NULL"
     )
-    pk: bool = Field(default=False, description="Part of the technical primary key")
+    pk: bool = Field(default=False, description="Входит в технический первичный ключ")
     description: str | None = None
 
     @model_validator(mode="after")
@@ -44,22 +45,22 @@ class ColumnMapping(BaseModel):
         if self.expression is not None:
             if self.source or self.transform:
                 raise ValueError(
-                    f"column '{self.target}': 'expression' is mutually exclusive with "
-                    "'source' and 'transform'"
+                    f"колонка '{self.target}': 'expression' взаимоисключающа с "
+                    "'source' и 'transform'"
                 )
         else:
             if not self.source:
                 raise ValueError(
-                    f"column '{self.target}': either 'source' or 'expression' must be set"
+                    f"колонка '{self.target}': должно быть задано 'source' или 'expression'"
                 )
         return self
 
     def render_expression(self) -> str:
-        """Return the Spark SQL fragment that produces this target column."""
+        """Вернуть фрагмент Spark SQL, формирующий значение целевой колонки."""
         if self.expression is not None:
             expr = self.expression
         elif self.transform is not None:
-            assert self.source is not None  # guaranteed by validator
+            assert self.source is not None  # гарантировано валидатором
             expr = self.transform.replace("$", self.source)
         else:
             assert self.source is not None
@@ -70,12 +71,12 @@ class ColumnMapping(BaseModel):
         return f"cast({expr} as {self.type})"
 
     def source_columns(self) -> list[str]:
-        """Return the list of source columns this mapping references.
+        """Вернуть список исходных колонок, на которые опирается маппинг.
 
-        Used by the lineage builder. For free expressions we return an empty
-        list because static SQL parsing is out of scope for v0.1; users may
-        annotate ``expression`` with explicit ``lineage_sources`` in future
-        revisions.
+        Используется построителем lineage. Для свободных ``expression`` в v0.1
+        возвращаем пустой список — статический разбор SQL вне области текущей
+        версии; в будущих версиях разработчик сможет аннотировать ``expression``
+        явным полем ``lineage_sources``.
         """
         if self.source is not None:
             return [self.source]

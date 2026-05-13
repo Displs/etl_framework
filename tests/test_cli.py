@@ -1,4 +1,4 @@
-"""Smoke tests for the Typer CLI."""
+"""Smoke-тесты Typer-CLI."""
 
 from __future__ import annotations
 
@@ -16,7 +16,8 @@ runner = CliRunner()
 def test_validate_clean_repo():
     result = runner.invoke(app, ["validate", str(EXAMPLES)])
     assert result.exit_code == 0, result.output
-    assert "errors" in result.output.lower()
+    # таблица отчёта содержит русский заголовок «ошибки»
+    assert "ошибки" in result.output.lower()
 
 
 def test_generate_writes_artifacts(tmp_path: Path):

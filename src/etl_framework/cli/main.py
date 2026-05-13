@@ -1,10 +1,10 @@
-"""Command-line interface for the ETL framework.
+"""Интерфейс командной строки фреймворка.
 
-Commands:
-    validate    — load and validate the metadata repository
-    generate    — render PySpark + Airflow DAGs into an output directory
-    discover    — produce a draft EntitySpec from a Postgres table
-    lineage     — export OpenLineage JSON / publish to OpenMetadata
+Команды:
+    validate    — загрузить и провалидировать репозиторий метаданных
+    generate    — сформировать PySpark-скрипты и DAG Airflow в указанный каталог
+    discover    — построить черновую EntitySpec по таблице Postgres
+    lineage     — экспорт OpenLineage JSON и публикация в OpenMetadata
 """
 
 from __future__ import annotations
@@ -25,8 +25,18 @@ from ..models import Layer
 from ..repository import MetadataRepository, ValidationError, validate_repository
 from ..security import AuditLogger, audit_event
 
+# На Windows стандартный stdout/stderr приходит с кодировкой cp1252,
+# что ломает вывод кириллицы. Принудительно переключаем потоки на UTF-8
+# до того, как Console захватит их в свой буфер.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
 app = typer.Typer(add_completion=False, no_args_is_help=True, pretty_exceptions_enable=False)
-console = Console()
+console = Console(legacy_windows=False)
 
 
 def _load_repo(root: Path) -> MetadataRepository:
@@ -40,24 +50,26 @@ def _load_repo(root: Path) -> MetadataRepository:
 
 @app.command()
 def validate(
-    root: Path = typer.Argument(..., help="Repository root containing sources/ and entities/"),
+    root: Path = typer.Argument(
+        ..., help="Корень репозитория с подкаталогами sources/ и entities/"
+    ),
 ) -> None:
-    """Validate all specs and cross-entity invariants."""
+    """Провалидировать все спецификации и кросс-сущностные инварианты."""
     try:
         repo = _load_repo(root)
     except Exception as exc:
-        console.print(f"[red]error:[/red] {exc}")
+        console.print(f"[red]ошибка:[/red] {exc}")
         raise typer.Exit(2) from exc
 
     issues = validate_repository(repo)
     errors = [i for i in issues if i.severity == "error"]
     warnings = [i for i in issues if i.severity == "warning"]
 
-    table = Table(title=f"Repository: {root}")
-    table.add_column("entities", justify="right")
-    table.add_column("sources", justify="right")
-    table.add_column("errors", justify="right", style="red")
-    table.add_column("warnings", justify="right", style="yellow")
+    table = Table(title=f"Репозиторий: {root}")
+    table.add_column("сущности", justify="right")
+    table.add_column("источники", justify="right")
+    table.add_column("ошибки", justify="right", style="red")
+    table.add_column("предупреждения", justify="right", style="yellow")
     table.add_row(
         str(len(repo.entities)),
         str(len(repo.sources)),
@@ -79,11 +91,15 @@ def validate(
 
 @app.command()
 def generate(
-    root: Path = typer.Argument(..., help="Repository root"),
-    output: Path = typer.Option(Path("build"), "-o", "--output", help="Output directory"),
-    sql_sinks: bool = typer.Option(False, help="Emit SQL DDL for external sinks"),
+    root: Path = typer.Argument(..., help="Корень репозитория"),
+    output: Path = typer.Option(
+        Path("build"), "-o", "--output", help="Каталог для сгенерированных артефактов"
+    ),
+    sql_sinks: bool = typer.Option(
+        False, help="Сформировать DDL для внешних приёмников (Greenplum/ClickHouse)"
+    ),
 ) -> None:
-    """Render PySpark scripts and Airflow DAGs into ``output``."""
+    """Сгенерировать PySpark-скрипты и DAG Airflow в каталог ``output``."""
     repo = _load_repo(root)
     issues = validate_repository(repo)
     if any(i.severity == "error" for i in issues):
@@ -98,14 +114,14 @@ def generate(
     artifacts = engine.generate_repository(repo, output)
     for art in artifacts:
         path = art.write(output)
-        console.print(f"[green]wrote[/green] {path} (sha256={art.checksum[:12]})")
+        console.print(f"[green]записано[/green] {path} (sha256={art.checksum[:12]})")
 
     dag_gen = AirflowDagGenerator()
     for layer, content in dag_gen.render_all(repo).items():
         path = output / "airflow" / f"etl_{layer.value}.py"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
-        console.print(f"[green]wrote[/green] {path}")
+        console.print(f"[green]записано[/green] {path}")
 
     if sql_sinks:
         sql_gen = SqlSinkGenerator()
@@ -115,7 +131,7 @@ def generate(
                 path = output / "sql" / sink.kind / f"{ent.metadata.name}__{sink.name}.sql"
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(content, encoding="utf-8")
-                console.print(f"[green]wrote[/green] {path}")
+                console.print(f"[green]записано[/green] {path}")
 
     audit.log(audit_event("generate.done", details={"artifacts": str(len(artifacts))}))
 
@@ -125,16 +141,16 @@ def generate(
 
 @app.command()
 def discover(
-    root: Path = typer.Argument(..., help="Repository root"),
-    source: str = typer.Option(..., help="Source name (must exist under sources/)"),
-    schema: str = typer.Option(..., help="Source schema"),
-    table: str = typer.Option(..., help="Source table"),
-    layer: Layer = typer.Option(Layer.STG, help="Target layer"),
+    root: Path = typer.Argument(..., help="Корень репозитория"),
+    source: str = typer.Option(..., help="Имя источника (должно быть в sources/)"),
+    schema: str = typer.Option(..., help="Схема в источнике"),
+    table: str = typer.Option(..., help="Таблица в источнике"),
+    layer: Layer = typer.Option(Layer.STG, help="Целевой слой хранилища"),
     output: Path | None = typer.Option(
-        None, "-o", "--output", help="Where to write the YAML; default: stdout"
+        None, "-o", "--output", help="Куда сохранить YAML; по умолчанию — stdout"
     ),
 ) -> None:
-    """Produce a draft EntitySpec YAML for a source table."""
+    """Сформировать черновой YAML EntitySpec по таблице источника."""
     repo = _load_repo(root)
     src = repo.source(source)
     spec = discover_table(src, schema, table, target_layer=layer)
@@ -144,40 +160,42 @@ def discover(
     else:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8")
-        console.print(f"[green]wrote[/green] {output}")
+        console.print(f"[green]записано[/green] {output}")
 
 
 # ------------------------------------------------------------------- lineage
 
 
-lineage_app = typer.Typer(help="Lineage utilities", no_args_is_help=True)
+lineage_app = typer.Typer(help="Утилиты происхождения данных", no_args_is_help=True)
 app.add_typer(lineage_app, name="lineage")
 
 
 @lineage_app.command("export")
 def lineage_export(
-    root: Path = typer.Argument(..., help="Repository root"),
+    root: Path = typer.Argument(..., help="Корень репозитория"),
     output: Path = typer.Option(
-        Path("build/openlineage.json"), "-o", "--output", help="Output JSON path"
+        Path("build/openlineage.json"), "-o", "--output", help="Путь к JSON-файлу"
     ),
 ) -> None:
-    """Export the lineage graph as an OpenLineage events JSON file."""
+    """Выгрузить граф происхождения данных в формате OpenLineage."""
     repo = _load_repo(root)
     graph = LineageBuilder().build(repo)
     written = OpenLineageExporter().write(graph, output)
-    console.print(f"[green]wrote[/green] {written}")
+    console.print(f"[green]записано[/green] {written}")
 
 
 @lineage_app.command("publish")
 def lineage_publish(
-    root: Path = typer.Argument(..., help="Repository root"),
+    root: Path = typer.Argument(..., help="Корень репозитория"),
     host_port: str = typer.Option(..., envvar="OPENMETADATA_HOST_PORT"),
-    jwt_token: str = typer.Option(..., envvar="OPENMETADATA_JWT", help="JWT bot token"),
+    jwt_token: str = typer.Option(
+        ..., envvar="OPENMETADATA_JWT", help="JWT-токен сервисной учётки"
+    ),
     iceberg_service: str = typer.Option(
         "iceberg_warehouse", envvar="OPENMETADATA_ICEBERG_SERVICE"
     ),
 ) -> None:
-    """Publish lineage edges to an OpenMetadata server."""
+    """Опубликовать рёбра происхождения данных в OpenMetadata."""
     repo = _load_repo(root)
     graph = LineageBuilder().build(repo)
     publisher = OpenMetadataPublisher(
@@ -186,11 +204,12 @@ def lineage_publish(
         )
     )
     n = publisher.publish(graph)
-    console.print(f"[green]published {n} edges[/green]")
+    console.print(f"[green]опубликовано рёбер: {n}[/green]")
 
 
 def _entrypoint() -> None:
-    # Wrapper for setuptools entry point so we can intercept exit codes if needed.
+    # Обёртка для entry-point setuptools; пригодится, если потребуется
+    # перехватывать коды возврата.
     sys.exit(app(standalone_mode=True))
 
 

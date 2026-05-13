@@ -1,4 +1,4 @@
-"""Tests for the Pydantic metadata models."""
+"""Тесты Pydantic-моделей метаданных."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def test_duplicate_target_columns_rejected():
                 ColumnMapping(target="x", type="INT", source="b"),
             ]
         )
-    assert "duplicate target column" in str(exc.value)
+    assert "дубликат целевой колонки" in str(exc.value)
 
 
 def test_scd2_requires_business_keys_and_tracked():
@@ -82,7 +82,7 @@ def test_scd2_technical_columns_must_not_collide():
                 ColumnMapping(target="valid_from", type="TIMESTAMP", source="vf"),
             ],
         )
-    assert "must not be present in mapping" in str(exc.value)
+    assert "не должна присутствовать в mapping" in str(exc.value)
 
 
 def test_column_mapping_expression_is_exclusive():

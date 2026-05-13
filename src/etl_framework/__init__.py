@@ -1,3 +1,3 @@
-"""Active-metadata-driven ETL framework."""
+"""Фреймворк автоматизации ETL на основе активных метаданных."""
 
 __version__ = "0.1.0"
